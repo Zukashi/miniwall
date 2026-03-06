@@ -42,9 +42,9 @@ jobs:
 
       - name: Copy updated source to VM
         run: |
-          rsync -az --exclude node_modules --exclude dist --exclude .env \
-            -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no" \
-            ./ ${{ secrets.GCP_VM_USER }}@${{ secrets.GCP_VM_IP }}:/home/${{ secrets.GCP_VM_USER }}/miniwall/
+          scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -r \
+            src package.json package-lock.json tsconfig.json docker-compose.yml Dockerfile \
+            ${{ secrets.GCP_VM_USER }}@${{ secrets.GCP_VM_IP }}:/home/${{ secrets.GCP_VM_USER }}/miniwall/
 
       - name: Rebuild and restart containers
         run: |

@@ -1,0 +1,53 @@
+name: Deploy to GCP
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+    needs: []
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript build
+        run: npm run build
+
+      - name: Run tests
+        run: npm test
+        env:
+          NODE_ENV: test
+          JWT_SECRET: ci_test_secret
+          JWT_EXPIRES_IN: 1h
+
+      - name: Write SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.GCP_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.GCP_VM_IP }} >> ~/.ssh/known_hosts
+
+      - name: Copy updated source to VM
+        run: |
+          rsync -az --exclude node_modules --exclude dist --exclude .env \
+            -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no" \
+            ./ ${{ secrets.GCP_VM_USER }}@${{ secrets.GCP_VM_IP }}:/home/${{ secrets.GCP_VM_USER }}/miniwall/
+
+      - name: Rebuild and restart containers
+        run: |
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
+            ${{ secrets.GCP_VM_USER }}@${{ secrets.GCP_VM_IP }} \
+            "cd /home/${{ secrets.GCP_VM_USER }}/miniwall && sudo docker compose up -d --build"
